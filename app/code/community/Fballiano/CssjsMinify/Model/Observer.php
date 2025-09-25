@@ -13,6 +13,12 @@ class Fballiano_CssjsMinify_Model_Observer
     {
         $response = $observer->getResponse();
         $html = $response->getBody();
+        $html = self::minifyCssJs($html);
+        $response->setBody($html);
+    }
+    
+    public static function minifyCssJs(string $html): string
+    {
         if (defined('MAHO_PUBLIC_DIR')) {
             $baseDir = MAHO_PUBLIC_DIR;
         } else {
@@ -31,11 +37,13 @@ class Fballiano_CssjsMinify_Model_Observer
         $pattern = '/(<script.+src\s*=\s*["\'])(.*\.js)(["\'].*>)/iU';
         $html = preg_replace_callback($pattern, function($matches) use ($baseDir, $minifiedDir, $minifiedUrl) {
             $url = $matches[2];
-            $urlComponents = parse_url($url);
-            $path = $urlComponents['path'];
+            // $urlComponents = parse_url($url, PHP_URL_PATH);
+            // $path = $urlComponents['path'];
+            $path = (string) parse_url($url, PHP_URL_PATH);
+            // printr($baseDir . $path);
             if (file_exists($baseDir . $path)) {
                 $time = filemtime($baseDir . $path);
-                $hash = md5($path) . "-$time.js";
+                $hash = md5($path) . "-$time.min.js";
                 if (!file_exists($minifiedDir . $hash)) {
                     $minifier = new \MatthiasMullie\Minify\JS($baseDir . $path);
                     $minifier->minify("$minifiedDir/$hash");
@@ -49,11 +57,13 @@ class Fballiano_CssjsMinify_Model_Observer
         $pattern = '/(<link.+href\s*=\s*["\'])(.*\.css)(["\'].*>)/iU';
         $html = preg_replace_callback($pattern, function($matches) use ($baseDir, $minifiedDir, $minifiedUrl) {
             $url = $matches[2];
-            $urlComponents = parse_url($url);
-            $path = $urlComponents['path'];
+            // $urlComponents = parse_url($url);
+            // $path = $urlComponents['path'];
+            $path = (string) parse_url($url, PHP_URL_PATH);
+            // printr($baseDir . $path);
             if (file_exists($baseDir . $path)) {
                 $time = filemtime($baseDir . $path);
-                $hash = md5($path) . "-$time.css";
+                $hash = md5($path) . "-$time.min.css";
                 if (!file_exists($minifiedDir . $hash)) {
                     $minifier = new \MatthiasMullie\Minify\CSS($baseDir . $path);
                     $minifier->minify("$minifiedDir/$hash");
@@ -63,7 +73,7 @@ class Fballiano_CssjsMinify_Model_Observer
             return $matches[1] . $matches[2] . $matches[3];
         }, $html);
 
-        $response->setBody($html);
+        return $html;
     }
 
     public function dailyCron(): void
