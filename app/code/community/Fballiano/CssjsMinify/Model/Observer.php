@@ -7,8 +7,13 @@
  */
 class Fballiano_CssjsMinify_Model_Observer
 {
-    public const MINIFIED_FILES_FOLDER = 'fbminify';
+    public const MINIFIED_FILES_FOLDER = 'min';
 
+    /**
+     * Observes: http_response_send_before
+     *
+     * @param  Varien_Event_Observer $observer
+     */
     public function httpResponseSendBefore(Varien_Event_Observer $observer): void
     {
         $response = $observer->getResponse();
@@ -36,19 +41,23 @@ class Fballiano_CssjsMinify_Model_Observer
         // Process JS
         $pattern = '/(<script.+src\s*=\s*["\'])(.*\.js)(["\'].*>)/iU';
         $html = preg_replace_callback($pattern, function($matches) use ($baseDir, $minifiedDir, $minifiedUrl) {
-            $url = $matches[2];
-            // $urlComponents = parse_url($url, PHP_URL_PATH);
-            // $path = $urlComponents['path'];
-            $path = (string) parse_url($url, PHP_URL_PATH);
-            // printr($baseDir . $path);
-            if (file_exists($baseDir . $path)) {
-                $time = filemtime($baseDir . $path);
-                $hash = md5($path) . "-$time.min.js";
-                if (!file_exists($minifiedDir . $hash)) {
-                    $minifier = new \MatthiasMullie\Minify\JS($baseDir . $path);
-                    $minifier->minify("$minifiedDir/$hash");
+            $url         = $matches[2];
+            $origPathRel = (string) parse_url($url, PHP_URL_PATH);
+            $origPathAbs = $baseDir.$origPathRel;
+            if (file_exists($origPathAbs)) {
+                $origPathFilename = pathinfo($origPathAbs, PATHINFO_FILENAME);
+                $minifiedFile = $origPathFilename."-".hash("adler32", $origPathAbs, false)."-".filemtime($origPathAbs).".min.js";
+                $minifiedPath = $minifiedDir.$minifiedFile;
+                if (!file_exists($minifiedPath)) {
+                    try {
+                        $minifier = new \MatthiasMullie\Minify\JS($origPathAbs);
+                        $minifier->minify($minifiedPath);
+                    } catch (Throwable $e) {
+                        Mage::logException($e);
+                        return $matches[1] . $matches[2] . $matches[3];
+                    }
                 }
-                $matches[2] = $minifiedUrl . $hash;
+                $matches[2] = $minifiedUrl . $minifiedFile;
             }
             return $matches[1] . $matches[2] . $matches[3];
         }, $html);
@@ -56,19 +65,23 @@ class Fballiano_CssjsMinify_Model_Observer
         // Process CSS
         $pattern = '/(<link.+href\s*=\s*["\'])(.*\.css)(["\'].*>)/iU';
         $html = preg_replace_callback($pattern, function($matches) use ($baseDir, $minifiedDir, $minifiedUrl) {
-            $url = $matches[2];
-            // $urlComponents = parse_url($url);
-            // $path = $urlComponents['path'];
-            $path = (string) parse_url($url, PHP_URL_PATH);
-            // printr($baseDir . $path);
-            if (file_exists($baseDir . $path)) {
-                $time = filemtime($baseDir . $path);
-                $hash = md5($path) . "-$time.min.css";
-                if (!file_exists($minifiedDir . $hash)) {
-                    $minifier = new \MatthiasMullie\Minify\CSS($baseDir . $path);
-                    $minifier->minify("$minifiedDir/$hash");
+            $url         = $matches[2];
+            $origPathRel = (string) parse_url($url, PHP_URL_PATH);
+            $origPathAbs = $baseDir.$origPathRel;
+            if (file_exists($origPathAbs)) {
+                $origPathFilename = pathinfo($origPathAbs, PATHINFO_FILENAME);
+                $minifiedFile = $origPathFilename."-".hash("adler32", $origPathAbs, false)."-".filemtime($origPathAbs).".min.css";
+                $minifiedPath = $minifiedDir.$minifiedFile;
+                if (!file_exists($minifiedPath)) {
+                    try {
+                        $minifier = new \MatthiasMullie\Minify\CSS($origPathAbs);
+                        $minifier->minify($minifiedPath);
+                    } catch (Throwable $e) {
+                        Mage::logException($e);
+                        return $matches[1] . $matches[2] . $matches[3];
+                    }
                 }
-                $matches[2] = $minifiedUrl . $hash;
+                $matches[2] = $minifiedUrl . $minifiedFile;
             }
             return $matches[1] . $matches[2] . $matches[3];
         }, $html);
@@ -76,28 +89,26 @@ class Fballiano_CssjsMinify_Model_Observer
         return $html;
     }
 
+    /**
+     * Keep files newer than 7 days only.
+     * @return void
+     */
     public function dailyCron(): void
     {
         $mediaDir = Mage::getBaseDir('media');
         $minifiedDir = "{$mediaDir}/" . self::MINIFIED_FILES_FOLDER;
-
+        if (!is_dir($minifiedDir)) {
+            return;
+        }
         $files = scandir($minifiedDir, SCANDIR_SORT_DESCENDING);
-        $lastHash = null;
         foreach ($files as $file) {
             if ($file === '.' || $file === '..') {
                 continue;
             }
-
-            $fileName = preg_replace('/\.(js|css)$/', '', $file);
-            $parts = explode('-', $fileName);
-            $hash = $parts[0];
-
-            if ($hash == $lastHash) {
-                unlink("{$minifiedDir}/{$file}");
-                continue;
+            $path = "{$minifiedDir}/{$file}";
+            if (is_file($path) && filemtime($path) + (60 * 60 * 24 * 7) < time() && is_writable($path)) {
+                unlink($path);
             }
-
-            $lastHash = $hash;
         }
     }
 }
