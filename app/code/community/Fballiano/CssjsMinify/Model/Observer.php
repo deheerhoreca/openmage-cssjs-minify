@@ -112,7 +112,6 @@ class Fballiano_CssjsMinify_Model_Observer
             }
             return $matches[1] . $matches[2] . $matches[3];
         }, $html);
-
         return $html;
     }
 
