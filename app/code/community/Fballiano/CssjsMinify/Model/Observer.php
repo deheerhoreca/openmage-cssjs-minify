@@ -7,8 +7,16 @@
  */
 class Fballiano_CssjsMinify_Model_Observer
 {
+    /**
+     * Folder inside media/ where minified files are stored.
+     */
     public const MINIFIED_FILES_FOLDER = 'min';
-
+    
+    /**
+     * Cache version to force refresh of minified files on change of minification logic.
+     */
+    public const CACHE_VERSION = 1;
+    
     /**
      * Observes: http_response_send_before
      *
@@ -22,6 +30,13 @@ class Fballiano_CssjsMinify_Model_Observer
         $response->setBody($html);
     }
     
+    /**
+     * Minify CSS and JS files in the given HTML content.
+     * > Skip minifying a file if it appears to be already minified.
+     *
+     * @param string $html
+     * @return string
+     */
     public static function minifyCssJs(string $html): string
     {
         if (defined('MAHO_PUBLIC_DIR')) {
@@ -46,12 +61,18 @@ class Fballiano_CssjsMinify_Model_Observer
             $origPathAbs = $baseDir.$origPathRel;
             if (file_exists($origPathAbs)) {
                 $origPathFilename = pathinfo($origPathAbs, PATHINFO_FILENAME);
-                $minifiedFile = $origPathFilename."-".hash("adler32", $origPathAbs, false)."-".filemtime($origPathAbs).".min.js";
+                $minifiedFile = $origPathFilename."-".hash("adler32", $origPathAbs, false)."-".filemtime($origPathAbs)."-".self::CACHE_VERSION.".min.js";
                 $minifiedPath = $minifiedDir.$minifiedFile;
                 if (!file_exists($minifiedPath)) {
                     try {
-                        $minifier = new \MatthiasMullie\Minify\JS($origPathAbs);
-                        $minifier->minify($minifiedPath);
+                        if(self::isVendorMinified($origPathAbs)) {
+                        // Just copy the original file if it's already minified, prevents double minification effort and bugs
+                            copy($origPathAbs, $minifiedPath);
+                        } else {
+                            // Minify the JS file
+                            $minifier = new \MatthiasMullie\Minify\JS($origPathAbs);
+                            $minifier->minify($minifiedPath);
+                        }
                     } catch (Throwable $e) {
                         Mage::logException($e);
                         return $matches[1] . $matches[2] . $matches[3];
@@ -70,12 +91,18 @@ class Fballiano_CssjsMinify_Model_Observer
             $origPathAbs = $baseDir.$origPathRel;
             if (file_exists($origPathAbs)) {
                 $origPathFilename = pathinfo($origPathAbs, PATHINFO_FILENAME);
-                $minifiedFile = $origPathFilename."-".hash("adler32", $origPathAbs, false)."-".filemtime($origPathAbs).".min.css";
+                $minifiedFile = $origPathFilename."-".hash("adler32", $origPathAbs, false)."-".filemtime($origPathAbs)."-".self::CACHE_VERSION.".min.css";
                 $minifiedPath = $minifiedDir.$minifiedFile;
                 if (!file_exists($minifiedPath)) {
                     try {
-                        $minifier = new \MatthiasMullie\Minify\CSS($origPathAbs);
-                        $minifier->minify($minifiedPath);
+                        if(self::isVendorMinified($origPathAbs)) {
+                            // Just copy the original file if it's already minified, prevents double minification effort and bugs
+                            copy($origPathAbs, $minifiedPath);
+                        } else {
+                            // Minify the CSS file
+                            $minifier = new \MatthiasMullie\Minify\CSS($origPathAbs);
+                            $minifier->minify($minifiedPath);
+                        }
                     } catch (Throwable $e) {
                         Mage::logException($e);
                         return $matches[1] . $matches[2] . $matches[3];
@@ -87,6 +114,23 @@ class Fballiano_CssjsMinify_Model_Observer
         }, $html);
 
         return $html;
+    }
+
+    /**
+     * Check if a file is already minified based on its name.
+     *
+     * @param string $filePath
+     * @return bool
+     */
+    public static function isVendorMinified(string $filePath): bool
+    {
+        $minifiedIndicators = ['.min.', '-min.', '.pack.', '-pack.'];
+        foreach ($minifiedIndicators as $indicator) {
+            if (strpos($filePath, $indicator) !== false) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
