@@ -61,7 +61,7 @@ class Fballiano_CssjsMinify_Model_Observer
             $origPathAbs = $baseDir.$origPathRel;
             if (file_exists($origPathAbs)) {
                 $origPathFilename = pathinfo($origPathAbs, PATHINFO_FILENAME);
-                $minifiedFile = $origPathFilename."-".hash("adler32", $origPathAbs, false)."-".filemtime($origPathAbs)."-".self::CACHE_VERSION.".min.js";
+                $minifiedFile = $origPathFilename."-".hash("xxh3", $origPathAbs, false)."-".filemtime($origPathAbs)."-".self::CACHE_VERSION.".min.js";
                 $minifiedPath = $minifiedDir.$minifiedFile;
                 if (!file_exists($minifiedPath)) {
                     try {
@@ -91,7 +91,7 @@ class Fballiano_CssjsMinify_Model_Observer
             $origPathAbs = $baseDir.$origPathRel;
             if (file_exists($origPathAbs)) {
                 $origPathFilename = pathinfo($origPathAbs, PATHINFO_FILENAME);
-                $minifiedFile = $origPathFilename."-".hash("adler32", $origPathAbs, false)."-".filemtime($origPathAbs)."-".self::CACHE_VERSION.".min.css";
+                $minifiedFile = $origPathFilename."-".hash("xxh3", $origPathAbs, false)."-".filemtime($origPathAbs)."-".self::CACHE_VERSION.".min.css";
                 $minifiedPath = $minifiedDir.$minifiedFile;
                 if (!file_exists($minifiedPath)) {
                     try {
